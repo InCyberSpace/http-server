@@ -1,8 +1,5 @@
 #include "async.hpp"
 
-#include "server.hpp"
-#include "utils.hpp"
-
 namespace async_lib
 {
 	FinalAwaitable::FinalAwaitable(

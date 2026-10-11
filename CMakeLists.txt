@@ -65,7 +65,7 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 include(GoogleTest)
 add_subdirectory(googletest)
 
-add_executable(TEST src/test.cpp)
+add_executable(TEST src/test.cpp src/async_test.cpp)
 target_compile_features(TEST PUBLIC cxx_std_23)
 
 if (MINGW)

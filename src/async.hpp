@@ -1,9 +1,13 @@
 #pragma once
 
 #include <atomic>
+#include <cassert>
 #include <condition_variable>
 #include <coroutine>
 #include <deque>
+#include <exception>
+#include <mutex>
+#include <optional>
 #include <thread>
 #include <utility>
 
@@ -186,15 +190,9 @@ namespace async_lib
 
 		T await_resume()
 		{
-			// if (const auto except = handle_.promise().except_)
-			//{
-			//	std::rethrow_exception(except);
-			// }
-			//  TODO: I CANNOT FIX THIS
-
-			if (handle_.promise().except_)
+			if (const auto except = handle_.promise().except_)
 			{
-				throw std::runtime_error("An exception from Task");
+				std::rethrow_exception(except);
 			}
 
 			return handle_.promise().cur_value_;
@@ -316,15 +314,9 @@ namespace async_lib
 
 		void await_resume() const
 		{
-			// if (const auto except = handle_.promise().except_)
-			//{
-			//	std::rethrow_exception(except);
-			// }
-			//  TODO: I CANNOT FIX THIS
-
-			if (handle_.promise().except_)
+			if (const auto except = handle_.promise().except_)
 			{
-				throw std::runtime_error("An exception from Task");
+				std::rethrow_exception(except);
 			}
 		}
 

@@ -14,6 +14,18 @@
 
 namespace
 {
+	void log_current_exception(const char *const operation)
+	{
+		try
+		{
+			throw;
+		}
+		catch (const std::exception &error)
+		{
+			SPDLOG_DEBUG("{} failed: {}", operation, error.what());
+		}
+	}
+
 	[[nodiscard]] bool is_directory_valid(
 		const std::filesystem::path &working_dir,
 		const std::filesystem::path &dir_to_be_checked);
@@ -338,6 +350,8 @@ namespace http_lib
 
 	async_lib::Task<void> Server::run()
 	{
+		// Keep caught exception bindings unnamed in coroutine loops on Windows
+		// Clang; see docs/coroutine-exceptions.md for the compiler defect.
 		while (true)
 		{
 			Request request;
@@ -347,7 +361,7 @@ namespace http_lib
 			}
 			catch (const std::exception &)
 			{
-				SPDLOG_DEBUG("get_request() failed");
+				log_current_exception("get_request()");
 				break;
 			}
 
@@ -357,7 +371,7 @@ namespace http_lib
 			}
 			catch (const std::exception &)
 			{
-				SPDLOG_DEBUG("send_response() failed");
+				log_current_exception("send_response()");
 				break;
 			}
 
