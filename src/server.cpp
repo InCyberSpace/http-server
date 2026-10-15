@@ -1,16 +1,16 @@
 #include "server.hpp"
 
-#include <arpa/inet.h>
 #include <fstream>
 #include <iostream>
 #include <ranges>
 #include <regex>
 #include <vector>
 
-#if _WIN32
+#ifdef _WIN32
 #	include <winsock2.h>
 #	include <ws2tcpip.h>
 #else
+#   include <arpa/inet.h>
 #	include <netinet/in.h>
 #	include <sys/socket.h>
 #endif
