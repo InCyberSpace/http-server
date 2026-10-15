@@ -1,13 +1,19 @@
 #include "server.hpp"
 
+#include <arpa/inet.h>
 #include <fstream>
 #include <iostream>
 #include <ranges>
 #include <regex>
 #include <vector>
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#if _WIN32
+#	include <winsock2.h>
+#	include <ws2tcpip.h>
+#else
+#	include <netinet/in.h>
+#	include <sys/socket.h>
+#endif
 
 #include "async.hpp"
 #include "config.hpp"
@@ -26,9 +32,8 @@ namespace
 		}
 	}
 
-	[[nodiscard]] bool is_directory_valid(
-		const std::filesystem::path &working_dir,
-		const std::filesystem::path &dir_to_be_checked);
+	[[nodiscard]] bool is_directory_valid(const std::filesystem::path &working_dir,
+										  const std::filesystem::path &dir_to_be_checked);
 
 	bool is_directory_valid(const std::filesystem::path &working_dir,
 							const std::filesystem::path &dir_to_be_checked)
@@ -70,75 +75,104 @@ namespace http_lib
 		return config;
 	}
 
-	void Server::start_spawn_servers_func(socket_lib::SockWrapper listen_sock)
+	void Server::start_spawning_servers_func(socket_lib::SockWrapper listen_sock)
 	{
 		std::vector<std::unique_ptr<Server>> spawned_servers;
 
 		while (spawn_servers)
 		{
 			SPDLOG_DEBUG("Server count : {}", spawned_servers.size());
-			socket_lib::SockWrapper accept_sock =
-				accept(listen_sock.get(), nullptr, nullptr);
+#ifdef _WIN32
+			socket_lib::SockWrapper accept_sock = accept(listen_sock.get(), nullptr, nullptr);
 
 			if (accept_sock.get() == INVALID_SOCKET)
 			{
-				SPDLOG_ERROR("Accept failed. Reason : {}",
-							 utils_lib::get_last_error_as_str());
+				SPDLOG_ERROR("Accept failed. Reason : {}", utils_lib::get_last_error_as_str());
 				break;
 			}
 
 			u_long socket_mode = 1;
 			if (ioctlsocket(accept_sock.get(), FIONBIO, &socket_mode) != 0)
 			{
-				SPDLOG_ERROR("ioctlsocket failed. Reason : {}",
-							 utils_lib::get_last_error_as_str());
+				SPDLOG_ERROR("ioctlsocket failed. Reason : {}", utils_lib::get_last_error_as_str());
 				break;
 			}
+#else
+			socklen_t addr_len [[maybe_unused]];
+			socket_lib::SockWrapper accept_sock =
+				accept4(listen_sock.get(), nullptr, &addr_len, SOCK_NONBLOCK);
 
-			std::erase_if(spawned_servers,
-						  [](const std::unique_ptr<Server> &server) -> bool {
-							  return server->is_done();
-						  });
+			if (accept_sock.get() == -1)
+			{
+				SPDLOG_ERROR("Accept failed. Reason : {}", utils_lib::get_last_error_as_str());
+				break;
+			}
+#endif
+			std::erase_if(spawned_servers, [](const std::unique_ptr<Server> &server) -> bool {
+				return server->is_done();
+			});
 			SPDLOG_INFO("Accepted");
-			spawned_servers.emplace_back(
-				std::make_unique<Server>(std::move(accept_sock), 100000));
+			spawned_servers.emplace_back(std::make_unique<Server>(std::move(accept_sock), 100000));
 		}
 	}
 
 	void Server::start_spawning_servers(config_lib::Config server_config)
 	{
 		get_config() = std::move(server_config);
-
+#ifdef _WIN32
 		listen_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (listen_sock.get() == INVALID_SOCKET)
 		{
-			log_and_throw(
-				std::format("Could not create listening socket. Reason : {}",
-							utils_lib::get_last_error_as_str()));
+			log_and_throw(std::format("Could not create listening socket. Reason : {}",
+									  utils_lib::get_last_error_as_str()));
 		}
 
 		sockaddr_in addr_info = {};
 		addr_info.sin_family = AF_INET;
 		addr_info.sin_port = htons(static_cast<int>(get_config().get("PORT")));
-		inet_pton(AF_INET,
-				  static_cast<std::string>(get_config().get("LISTEN")).c_str(),
+		inet_pton(AF_INET, static_cast<std::string>(get_config().get("LISTEN")).c_str(),
 				  &addr_info.sin_addr);
 
-		if (bind(listen_sock.get(), reinterpret_cast<sockaddr *>(&addr_info),
-				 sizeof addr_info) == SOCKET_ERROR)
+		if (bind(listen_sock.get(), reinterpret_cast<sockaddr *>(&addr_info), sizeof addr_info) ==
+			SOCKET_ERROR)
 		{
-			log_and_throw(std::format("Bind failed. Reason : {}",
-									  utils_lib::get_last_error_as_str()));
+			log_and_throw(
+				std::format("Bind failed. Reason : {}", utils_lib::get_last_error_as_str()));
 		}
 
 		if (listen(listen_sock.get(), SOMAXCONN) == SOCKET_ERROR)
 		{
-			log_and_throw(std::format("Listen failed. Reason : {}",
+			log_and_throw(
+				std::format("Listen failed. Reason : {}", utils_lib::get_last_error_as_str()));
+		}
+#else
+		listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+		if (listen_sock.get() == -1)
+		{
+			log_and_throw(std::format("Could not create listening socket. Reason : {}",
 									  utils_lib::get_last_error_as_str()));
 		}
 
-		server_spawner =
-			std::thread(start_spawn_servers_func, std::move(listen_sock));
+		sockaddr_in addr_info = {};
+		addr_info.sin_family = AF_INET;
+		addr_info.sin_port = htons(static_cast<int>(get_config().get("PORT")));
+		addr_info.sin_addr.s_addr =
+			inet_addr(static_cast<std::string>(get_config().get("LISTEN")).c_str());
+
+		if (bind(listen_sock.get(), reinterpret_cast<sockaddr *>(&addr_info), sizeof addr_info) ==
+			-1)
+		{
+			log_and_throw(
+				std::format("Bind failed. Reason : {}", utils_lib::get_last_error_as_str()));
+		}
+
+		if (listen(listen_sock.get(), SOMAXCONN) == -1)
+		{
+			log_and_throw(
+				std::format("Listen failed. Reason : {}", utils_lib::get_last_error_as_str()));
+		}
+#endif
+		server_spawner = std::thread(start_spawning_servers_func, std::move(listen_sock));
 	}
 
 	void Server::stop_spawning_servers()
@@ -153,8 +187,7 @@ namespace http_lib
 	}
 
 	Server::Server(socket_lib::SockWrapper sock, const int sock_stream_buf_size)
-		: sock_stream_(std::move(sock), sock_stream_buf_size),
-		  runner_task_(run())
+		: sock_stream_(std::move(sock), sock_stream_buf_size), runner_task_(run())
 	{
 	}
 
@@ -243,8 +276,7 @@ namespace http_lib
 
 		if (request.method.type != "GET")
 		{
-			co_await send_error_status_code(
-				ErrorStatusCode::METHOD_NOT_ALLOWED);
+			co_await send_error_status_code(ErrorStatusCode::METHOD_NOT_ALLOWED);
 			co_return;
 		}
 
@@ -284,8 +316,7 @@ namespace http_lib
 			}
 		}
 
-		if (is_directory(file_path) ||
-			!is_directory_valid(working_dir, file_path.parent_path()))
+		if (is_directory(file_path) || !is_directory_valid(working_dir, file_path.parent_path()))
 		{
 			co_await send_error_status_code(ErrorStatusCode::FORBIDDEN);
 			co_return;
@@ -306,8 +337,7 @@ namespace http_lib
 		const std::streamoff file_size = f.tellg();
 		f.seekg(0, std::ios::beg);
 
-		co_await sock_stream_.send_all_async(
-			std::format("Content-Length: {}\r\n", file_size));
+		co_await sock_stream_.send_all_async(std::format("Content-Length: {}\r\n", file_size));
 
 		std::vector<char> buf;
 		buf.resize(fstream_buf_size);
@@ -319,12 +349,10 @@ namespace http_lib
 			co_await sock_stream_.send_all_async(buf);
 		}
 
-		co_await sock_stream_.send_all_async(
-			{buf.begin(), std::next(buf.begin(), f.gcount())});
+		co_await sock_stream_.send_all_async({buf.begin(), std::next(buf.begin(), f.gcount())});
 	}
 
-	async_lib::Task<void> Server::send_error_status_code(
-		const ErrorStatusCode status_code) const
+	async_lib::Task<void> Server::send_error_status_code(const ErrorStatusCode status_code) const
 	{
 		using namespace std::string_literals;
 

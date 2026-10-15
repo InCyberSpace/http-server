@@ -6,7 +6,11 @@
 #include <string>
 #include <vector>
 
-#include <winsock2.h>
+#ifdef _WIN32
+#	include <winsock2.h>
+#else
+#	define SOCKET int
+#endif
 
 #include "async.hpp"
 
@@ -47,8 +51,7 @@ namespace socket_lib
 		async_lib::Task<std::string> read_line_async();
 
 		[[nodiscard]] int send(const std::span<const char> &data) const;
-		[[nodiscard]] async_lib::Task<void> send_all_async(
-			const std::span<const char> &data) const;
+		[[nodiscard]] async_lib::Task<void> send_all_async(const std::span<const char> &data) const;
 
 	  private:
 		int buf_size_;

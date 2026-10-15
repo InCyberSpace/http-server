@@ -1,0 +1,7 @@
+BasedOnStyle : Microsoft
+UseTab: Always
+NamespaceIndentation: All
+ColumnLimit: 100
+AlignAfterOpenBracket: Align
+IndentCaseBlocks: true
+IndentPPDirectives: AfterHash

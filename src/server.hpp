@@ -7,8 +7,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <winsock2.h>
-
 #include "socket.hpp"
 
 namespace http_lib
@@ -63,7 +61,7 @@ namespace http_lib
 			const Request &request) const;
 		[[nodiscard]] async_lib::Task<void> send_error_status_code(
 			ErrorStatusCode status_code) const;
-		static void start_spawn_servers_func(
+		static void start_spawning_servers_func(
 			socket_lib::SockWrapper listen_sock);
 
 		static std::thread server_spawner;

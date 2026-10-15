@@ -3,10 +3,7 @@ cmake_minimum_required(VERSION 3.30)
 project(HTTP)
 enable_testing()
 
-if (NOT WIN32)
-    message(FATAL_ERROR "This program is only for windows")
-endif ()
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(ENABLE_ASAN OFF)
 
 if (MSVC)
@@ -56,7 +53,9 @@ set(HTTPLIB_USE_NON_BLOCKING_GETADDRINFO OFF CACHE BOOL "" FORCE)
 add_subdirectory(cpp-httplib)
 target_link_libraries(HTTP_LIB PUBLIC httplib::httplib)
 
-target_link_libraries(HTTP_LIB PRIVATE "ws2_32")
+if (WIN32)
+    target_link_libraries(HTTP_LIB PRIVATE "ws2_32")
+endif ()
 
 add_executable(HTTP src/main.cpp)
 target_link_libraries(HTTP PRIVATE HTTP_LIB)

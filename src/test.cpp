@@ -23,8 +23,7 @@ namespace test_lib
 	const std::string &get_domain()
 	{
 		static const std::string domain =
-			"http://localhost:" +
-			std::to_string(static_cast<int>(get_test_config().get("PORT")));
+			"http://localhost:" + std::to_string(static_cast<int>(get_test_config().get("PORT")));
 		return domain;
 	}
 
@@ -151,12 +150,10 @@ namespace test_lib
 
 	TEST_F(server_test, valid_requests)
 	{
-		httplib::Client cli(
-			"127.0.0.1",
-			get_test_config().get("PORT")); // localhost doesn't seem to work
+		httplib::Client cli("127.0.0.1",
+							get_test_config().get("PORT")); // localhost doesn't seem to work
 
 		auto res = cli.Get("/");
-		cli.set_keep_alive(false);
 
 		ASSERT_TRUE(res);
 
@@ -194,5 +191,7 @@ namespace test_lib
 		ASSERT_TRUE(res);
 		ASSERT_EQ(res->status, 405);
 		ASSERT_EQ(res->body.size(), 0);
+		cli.stop();
+		ASSERT_TRUE(!cli.is_socket_open());
 	}
 } // namespace test_lib
