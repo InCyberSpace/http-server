@@ -21,9 +21,10 @@ namespace
 	void close_socket(const SOCKET sock)
 	{
 #if _WIN32
+  shutdown(sock, SD_BOTH);
 		closesocket(sock);
 #else
-        shutdown(sock, SHUT_RDWR);
+  shutdown(sock, SHUT_RDWR);
 		::close(sock);
 #endif
 	}
