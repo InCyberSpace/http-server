@@ -124,7 +124,7 @@ namespace socket_lib
 		if (read_bytes <= 0)
 		{
 #ifdef _WIN32
-			if (WSAGetLastError == EWOULDBLOCK)
+			if (WSAGetLastError() == EWOULDBLOCK)
 #else
 			if (errno == EWOULDBLOCK)
 #endif
@@ -232,7 +232,7 @@ namespace socket_lib
 		if (sent_bytes < 0)
 		{
 #ifdef _WIN32
-			if (WSAGetLastError == EWOULDBLOCK)
+			if (WSAGetLastError() == EWOULDBLOCK)
 #else
 			if (errno == EWOULDBLOCK)
 #endif
